@@ -2404,9 +2404,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	}
 
 	// Disable resizing in Firefox
-	document.addEventListener("DOMContentLoaded", function () {
-	  document.execCommand("enableObjectResizing", false, false);
-	});
+	// document.addEventListener("DOMContentLoaded", function () {
+	//   document.execCommand("enableObjectResizing", false, false);
+	// });
 
 /***/ },
 /* 21 */

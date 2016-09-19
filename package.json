@@ -37,7 +37,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "quill": "^1.0.2"
+    "quill": "workmarket/quill#e1c524508345f5e1358fcd5fa954e3731618e365"
   },
   "peerDependencies": {
     "react": ">=0.14.0"
