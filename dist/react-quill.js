@@ -701,7 +701,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ function(module, exports) {
 
 	/*!
-	 * Quill Editor v1.0.4
+	 * Quill Editor v1.1.0
 	 * https://quilljs.com/
 	 * Copyright (c) 2014, Jason Chen
 	 * Copyright (c) 2013, salesforce.com
@@ -1067,6 +1067,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		            }
 		        });
 		        removedNodes.forEach(function (node) {
+		            if (node.parentNode != null &&
+		                (document.body.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_CONTAINED_BY)) {
+		                // Node has not actually been removed
+		                return;
+		            }
 		            var blot = Registry.find(node);
 		            if (blot == null)
 		                return;
@@ -1493,7 +1498,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		    else if (query instanceof HTMLElement) {
 		        var names = (query.getAttribute('class') || '').split(/\s+/);
 		        for (var i in names) {
-		            if (match = classes[names[i]])
+		            match = classes[names[i]];
+		            if (match)
 		                break;
 		        }
 		        match = match || tags[query.tagName];
@@ -2030,7 +2036,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		                return null;
 		            }
 		        }).forEach(function (blot) {
-		            if (blot == null || blot === _this)
+		            if (blot == null || blot === _this || blot.domNode[Registry.DATA_KEY] == null)
 		                return;
 		            blot.update(blot.domNode[Registry.DATA_KEY].mutations || []);
 		        });
@@ -2150,7 +2156,10 @@ return /******/ (function(modules) { // webpackBootstrap
 		        return _super.formats.call(this, domNode);
 		    };
 		    BlockBlot.prototype.format = function (name, value) {
-		        if (name === this.statics.blotName && !value) {
+		        if (Registry.query(name, Registry.Scope.BLOCK) == null) {
+		            return;
+		        }
+		        else if (name === this.statics.blotName && !value) {
 		            this.replaceWith(BlockBlot.blotName);
 		        }
 		        else {
@@ -2330,7 +2339,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		});
 		exports.default = exports.overload = exports.expandConfig = undefined;
 	
-		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 	
 		var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 	
@@ -2338,9 +2347,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		__webpack_require__(19);
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _editor = __webpack_require__(27);
 	
@@ -2399,7 +2408,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function register(path, target) {
 		      var _this = this;
 	
-		      var overwrite = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
+		      var overwrite = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
 	
 		      if (typeof path !== 'string') {
 		        var name = path.attrName || path.blotName;
@@ -2426,17 +2435,17 @@ return /******/ (function(modules) { // webpackBootstrap
 		  function Quill(container) {
 		    var _this2 = this;
 	
-		    var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+		    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 	
 		    _classCallCheck(this, Quill);
 	
-		    options = expandConfig(container, options);
-		    this.container = options.container;
+		    this.options = expandConfig(container, options);
+		    this.container = this.options.container;
 		    if (this.container == null) {
 		      return debug.error('Invalid Quill container', container);
 		    }
-		    if (options.debug) {
-		      Quill.debug(options.debug);
+		    if (this.options.debug) {
+		      Quill.debug(this.options.debug);
 		    }
 		    var html = this.container.innerHTML.trim();
 		    this.container.classList.add('ql-container');
@@ -2445,34 +2454,35 @@ return /******/ (function(modules) { // webpackBootstrap
 		    this.emitter = new _emitter2.default();
 		    this.scroll = _parchment2.default.create(this.root, {
 		      emitter: this.emitter,
-		      whitelist: options.formats
+		      whitelist: this.options.formats
 		    });
 		    this.editor = new _editor2.default(this.scroll, this.emitter);
 		    this.selection = new _selection2.default(this.scroll, this.emitter);
-		    this.theme = new options.theme(this, options);
+		    this.theme = new this.options.theme(this, this.options);
 		    this.keyboard = this.theme.addModule('keyboard');
 		    this.clipboard = this.theme.addModule('clipboard');
 		    this.history = this.theme.addModule('history');
 		    this.theme.init();
+		    this.emitter.on(_emitter2.default.events.EDITOR_CHANGE, function (type) {
+		      if (type === _emitter2.default.events.TEXT_CHANGE) {
+		        _this2.root.classList.toggle('ql-blank', _this2.editor.isBlank());
+		      }
+		    });
 		    var contents = this.clipboard.convert('<div class=\'ql-editor\' style="white-space: normal;">' + html + '<p><br></p></div>');
 		    this.setContents(contents);
 		    this.history.clear();
-		    if (options.readOnly) {
+		    if (this.options.placeholder) {
+		      this.root.setAttribute('data-placeholder', this.options.placeholder);
+		    }
+		    if (this.options.readOnly) {
 		      this.disable();
 		    }
-		    if (options.placeholder) {
-		      this.root.setAttribute('data-placeholder', options.placeholder);
-		    }
-		    this.root.classList.toggle('ql-blank', this.editor.isBlank());
-		    this.emitter.on(_emitter2.default.events.TEXT_CHANGE, function (delta) {
-		      _this2.root.classList.toggle('ql-blank', _this2.editor.isBlank());
-		    });
 		  }
 	
 		  _createClass(Quill, [{
 		    key: 'addContainer',
 		    value: function addContainer(container) {
-		      var refNode = arguments.length <= 1 || arguments[1] === undefined ? null : arguments[1];
+		      var refNode = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
 	
 		      if (typeof container === 'string') {
 		        var className = container;
@@ -2490,6 +2500,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'deleteText',
 		    value: function deleteText(index, length, source) {
+		      var _this3 = this;
+	
 		      var _overload = overload(index, length, source);
 	
 		      var _overload2 = _slicedToArray(_overload, 4);
@@ -2498,11 +2510,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		      length = _overload2[1];
 		      source = _overload2[3];
 	
-		      var range = this.getSelection();
-		      var change = this.editor.deleteText(index, length, source);
-		      range = shiftRange(range, index, -1 * length, source);
-		      this.setSelection(range, _emitter2.default.sources.SILENT);
-		      return change;
+		      return modify.call(this, source, index, -1 * length, function () {
+		        return _this3.editor.deleteText(index, length, source);
+		      });
 		    }
 		  }, {
 		    key: 'disable',
@@ -2512,9 +2522,10 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'enable',
 		    value: function enable() {
-		      var enabled = arguments.length <= 0 || arguments[0] === undefined ? true : arguments[0];
+		      var enabled = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 	
 		      this.editor.enable(enabled);
+		      this.container.classList.toggle('ql-disabled', !enabled);
 		      if (!enabled) {
 		        this.blur();
 		      }
@@ -2528,10 +2539,13 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'format',
 		    value: function format(name, value) {
-		      var source = arguments.length <= 2 || arguments[2] === undefined ? _emitter2.default.sources.API : arguments[2];
+		      var source = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : _emitter2.default.sources.API;
 	
+		      if (!this.options.strict && !this.isEnabled() && source === _emitter2.default.sources.USER) {
+		        return new _quillDelta2.default();
+		      }
 		      var range = this.getSelection(true);
-		      var change = new _delta2.default();
+		      var change = new _quillDelta2.default();
 		      if (range == null) return change;
 		      if (_parchment2.default.query(name, _parchment2.default.Scope.BLOCK)) {
 		        change = this.formatLine(range, name, value, source);
@@ -2547,6 +2561,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'formatLine',
 		    value: function formatLine(index, length, name, value, source) {
+		      var _this4 = this;
+	
 		      var formats = void 0;
 	
 		      var _overload3 = overload(index, length, name, value, source);
@@ -2558,15 +2574,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		      formats = _overload4[2];
 		      source = _overload4[3];
 	
-		      var range = this.getSelection();
-		      var change = this.editor.formatLine(index, length, formats, source);
-		      this.selection.setRange(range, true, _emitter2.default.sources.SILENT);
-		      this.selection.scrollIntoView();
-		      return change;
+		      return modify.call(this, source, index, 0, function () {
+		        return _this4.editor.formatLine(index, length, formats, source);
+		      });
 		    }
 		  }, {
 		    key: 'formatText',
 		    value: function formatText(index, length, name, value, source) {
+		      var _this5 = this;
+	
 		      var formats = void 0;
 	
 		      var _overload5 = overload(index, length, name, value, source);
@@ -2578,16 +2594,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		      formats = _overload6[2];
 		      source = _overload6[3];
 	
-		      var range = this.getSelection();
-		      var change = this.editor.formatText(index, length, formats, source);
-		      this.selection.setRange(range, true, _emitter2.default.sources.SILENT);
-		      this.selection.scrollIntoView();
-		      return change;
+		      return modify.call(this, source, index, 0, function () {
+		        return _this5.editor.formatText(index, length, formats, source);
+		      });
 		    }
 		  }, {
 		    key: 'getBounds',
 		    value: function getBounds(index) {
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 	
 		      if (typeof index === 'number') {
 		        return this.selection.getBounds(index, length);
@@ -2598,8 +2612,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'getContents',
 		    value: function getContents() {
-		      var index = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? this.getLength() - index : arguments[1];
+		      var index = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.getLength() - index;
 	
 		      var _overload7 = overload(index, length);
 	
@@ -2613,8 +2627,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'getFormat',
 		    value: function getFormat() {
-		      var index = arguments.length <= 0 || arguments[0] === undefined ? this.getSelection() : arguments[0];
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+		      var index = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this.getSelection();
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 	
 		      if (typeof index === 'number') {
 		        return this.editor.getFormat(index, length);
@@ -2635,7 +2649,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'getSelection',
 		    value: function getSelection() {
-		      var focus = arguments.length <= 0 || arguments[0] === undefined ? false : arguments[0];
+		      var focus = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
 	
 		      if (focus) this.focus();
 		      this.update(); // Make sure we access getRange with editor in consistent state
@@ -2644,8 +2658,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'getText',
 		    value: function getText() {
-		      var index = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? this.getLength() - index : arguments[1];
+		      var index = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.getLength() - index;
 	
 		      var _overload9 = overload(index, length);
 	
@@ -2664,19 +2678,20 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'insertEmbed',
 		    value: function insertEmbed(index, embed, value) {
-		      var source = arguments.length <= 3 || arguments[3] === undefined ? Quill.sources.API : arguments[3];
+		      var _this6 = this;
 	
-		      var range = this.getSelection();
-		      var change = this.editor.insertEmbed(index, embed, value, source);
-		      range = shiftRange(range, change, source);
-		      this.setSelection(range, _emitter2.default.sources.SILENT);
-		      return change;
+		      var source = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : Quill.sources.API;
+	
+		      return modify.call(this, source, index, null, function () {
+		        return _this6.editor.insertEmbed(index, embed, value, source);
+		      });
 		    }
 		  }, {
 		    key: 'insertText',
 		    value: function insertText(index, text, name, value, source) {
-		      var formats = void 0,
-		          range = this.getSelection();
+		      var _this7 = this;
+	
+		      var formats = void 0;
 	
 		      var _overload11 = overload(index, 0, name, value, source);
 	
@@ -2686,10 +2701,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		      formats = _overload12[2];
 		      source = _overload12[3];
 	
-		      var change = this.editor.insertText(index, text, formats, source);
-		      range = shiftRange(range, index, text.length, source);
-		      this.setSelection(range, _emitter2.default.sources.SILENT);
-		      return change;
+		      return modify.call(this, source, index, text.length, function () {
+		        return _this7.editor.insertText(index, text, formats, source);
+		      });
+		    }
+		  }, {
+		    key: 'isEnabled',
+		    value: function isEnabled() {
+		      return !this.container.classList.contains('ql-disabled');
 		    }
 		  }, {
 		    key: 'off',
@@ -2714,7 +2733,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'removeFormat',
 		    value: function removeFormat(index, length, source) {
-		      var range = this.getSelection();
+		      var _this8 = this;
 	
 		      var _overload13 = overload(index, length, source);
 	
@@ -2724,17 +2743,19 @@ return /******/ (function(modules) { // webpackBootstrap
 		      length = _overload14[1];
 		      source = _overload14[3];
 	
-		      var change = this.editor.removeFormat(index, length, source);
-		      range = shiftRange(range, change, source);
-		      this.setSelection(range, _emitter2.default.sources.SILENT);
-		      return change;
+		      return modify.call(this, source, index, null, function () {
+		        return _this8.editor.removeFormat(index, length, source);
+		      });
 		    }
 		  }, {
 		    key: 'setContents',
 		    value: function setContents(delta) {
-		      var source = arguments.length <= 1 || arguments[1] === undefined ? _emitter2.default.sources.API : arguments[1];
+		      var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _emitter2.default.sources.API;
 	
-		      delta = new _delta2.default(delta).slice();
+		      if (!this.options.strict && !this.isEnabled() && source === _emitter2.default.sources.USER) {
+		        return new _quillDelta2.default();
+		      }
+		      delta = new _quillDelta2.default(delta).slice();
 		      var lastOp = delta.ops[delta.ops.length - 1];
 		      // Quill contents must always end with newline
 		      if (lastOp == null || lastOp.insert[lastOp.insert.length - 1] !== '\n') {
@@ -2764,15 +2785,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'setText',
 		    value: function setText(text) {
-		      var source = arguments.length <= 1 || arguments[1] === undefined ? _emitter2.default.sources.API : arguments[1];
+		      var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _emitter2.default.sources.API;
 	
-		      var delta = new _delta2.default().insert(text);
+		      var delta = new _quillDelta2.default().insert(text);
 		      return this.setContents(delta, source);
 		    }
 		  }, {
 		    key: 'update',
 		    value: function update() {
-		      var source = arguments.length <= 0 || arguments[0] === undefined ? _emitter2.default.sources.USER : arguments[0];
+		      var source = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _emitter2.default.sources.USER;
 	
 		      var change = this.scroll.update(source); // Will update selection before selection.update() does if text changes
 		      this.selection.update(source);
@@ -2781,11 +2802,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'updateContents',
 		    value: function updateContents(delta) {
-		      var source = arguments.length <= 1 || arguments[1] === undefined ? _emitter2.default.sources.API : arguments[1];
+		      var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _emitter2.default.sources.API;
 	
+		      if (!this.options.strict && !this.isEnabled() && source === _emitter2.default.sources.USER) {
+		        return new _quillDelta2.default();
+		      }
 		      var range = this.getSelection();
 		      if (Array.isArray(delta)) {
-		        delta = new _delta2.default(delta.slice());
+		        delta = new _quillDelta2.default(delta.slice());
 		      }
 		      var change = this.editor.applyDelta(delta, source);
 		      if (range != null) {
@@ -2805,14 +2829,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		  modules: {},
 		  placeholder: '',
 		  readOnly: false,
+		  strict: true,
 		  theme: 'default'
 		};
 		Quill.events = _emitter2.default.events;
 		Quill.sources = _emitter2.default.sources;
-		Quill.version =  false ? 'dev' : ("1.0.4");
+		// eslint-disable-next-line no-undef
+		Quill.version =  false ? 'dev' : ("1.1.0");
 	
 		Quill.imports = {
-		  'delta': _delta2.default,
+		  'delta': _quillDelta2.default,
 		  'parchment': _parchment2.default,
 		  'core/module': _module2.default,
 		  'core/theme': _theme2.default
@@ -2875,6 +2901,24 @@ return /******/ (function(modules) { // webpackBootstrap
 		  return userConfig;
 		}
 	
+		function modify(source, index, shift, modifier) {
+		  var change = new _quillDelta2.default();
+		  if (!this.options.strict && !this.isEnabled() && source === _emitter2.default.sources.USER) {
+		    return new _quillDelta2.default();
+		  }
+		  var range = this.getSelection();
+		  change = modifier();
+		  if (range != null) {
+		    if (shift === null) {
+		      range = shiftRange(range, index, change, source);
+		    } else if (shift !== 0) {
+		      range = shiftRange(range, index, shift, source);
+		    }
+		    this.setSelection(range, _emitter2.default.sources.SILENT);
+		  }
+		  return change;
+		}
+	
 		function overload(index, length, name, value, source) {
 		  var formats = {};
 		  if (typeof index.index === 'number' && typeof index.length === 'number') {
@@ -2907,7 +2951,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  if (range == null) return null;
 		  var start = void 0,
 		      end = void 0;
-		  if (index instanceof _delta2.default) {
+		  if (index instanceof _quillDelta2.default) {
 		    var _map = [range.index, range.index + range.length].map(function (pos) {
 		      return index.transformPosition(pos, source === _emitter2.default.sources.USER);
 		    });
@@ -3092,6 +3136,22 @@ return /******/ (function(modules) { // webpackBootstrap
 		  return this;
 		};
 	
+		Delta.prototype.filter = function (predicate) {
+		  return this.ops.filter(predicate);
+		};
+	
+		Delta.prototype.forEach = function (predicate) {
+		  this.ops.forEach(predicate);
+		};
+	
+		Delta.prototype.map = function (predicate) {
+		  return this.ops.map(predicate);
+		};
+	
+		Delta.prototype.reduce = function (predicate, initial) {
+		  return this.ops.reduce(predicate, initial);
+		};
+	
 		Delta.prototype.chop = function () {
 		  var lastOp = this.ops[this.ops.length - 1];
 		  if (lastOp && lastOp.retain && !lastOp.attributes) {
@@ -3101,7 +3161,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		};
 	
 		Delta.prototype.length = function () {
-		  return this.ops.reduce(function (length, elem) {
+		  return this.reduce(function (length, elem) {
 		    return length + op.length(elem);
 		  }, 0);
 		};
@@ -3217,6 +3277,30 @@ return /******/ (function(modules) { // webpackBootstrap
 		  return delta.chop();
 		};
 	
+		Delta.prototype.eachLine = function (predicate, newline) {
+		  newline = newline || '\n';
+		  var iter = op.iterator(this.ops);
+		  var line = new Delta();
+		  while (iter.hasNext()) {
+		    if (iter.peekType() !== 'insert') return;
+		    var thisOp = iter.peek();
+		    var start = op.length(thisOp) - iter.peekLength();
+		    var index = typeof thisOp.insert === 'string' ?
+		      thisOp.insert.indexOf(newline, start) - start : -1;
+		    if (index < 0) {
+		      line.push(iter.next());
+		    } else if (index > 0) {
+		      line.push(iter.next(index));
+		    } else {
+		      predicate(line, iter.next(1).attributes || {});
+		      line = new Delta();
+		    }
+		  }
+		  if (line.length() > 0) {
+		    predicate(line, {});
+		  }
+		};
+	
 		Delta.prototype.transform = function (other, priority) {
 		  priority = !!priority;
 		  if (typeof other === 'number') {
@@ -3316,15 +3400,21 @@ return /******/ (function(modules) { // webpackBootstrap
 		 * any common prefix or suffix off the texts before diffing.
 		 * @param {string} text1 Old string to be diffed.
 		 * @param {string} text2 New string to be diffed.
+		 * @param {Int} cursor_pos Expected edit position in text1 (optional)
 		 * @return {Array} Array of diff tuples.
 		 */
-		function diff_main(text1, text2) {
+		function diff_main(text1, text2, cursor_pos) {
 		  // Check for equality (speedup).
 		  if (text1 == text2) {
 		    if (text1) {
 		      return [[DIFF_EQUAL, text1]];
 		    }
 		    return [];
+		  }
+	
+		  // Check cursor_pos within bounds
+		  if (cursor_pos < 0 || text1.length < cursor_pos) {
+		    cursor_pos = null;
 		  }
 	
 		  // Trim off common prefix (speedup).
@@ -3350,6 +3440,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		    diffs.push([DIFF_EQUAL, commonsuffix]);
 		  }
 		  diff_cleanupMerge(diffs);
+		  if (cursor_pos != null) {
+		    diffs = fix_cursor(diffs, cursor_pos);
+		  }
 		  return diffs;
 		};
 	
@@ -3843,8 +3936,123 @@ return /******/ (function(modules) { // webpackBootstrap
 		diff.DELETE = DIFF_DELETE;
 		diff.EQUAL = DIFF_EQUAL;
 	
-	
 		module.exports = diff;
+	
+		/*
+		 * Modify a diff such that the cursor position points to the start of a change:
+		 * E.g.
+		 *   cursor_normalize_diff([[DIFF_EQUAL, 'abc']], 1)
+		 *     => [1, [[DIFF_EQUAL, 'a'], [DIFF_EQUAL, 'bc']]]
+		 *   cursor_normalize_diff([[DIFF_INSERT, 'new'], [DIFF_DELETE, 'xyz']], 2)
+		 *     => [2, [[DIFF_INSERT, 'new'], [DIFF_DELETE, 'xy'], [DIFF_DELETE, 'z']]]
+		 *
+		 * @param {Array} diffs Array of diff tuples
+		 * @param {Int} cursor_pos Suggested edit position. Must not be out of bounds!
+		 * @return {Array} A tuple [cursor location in the modified diff, modified diff]
+		 */
+		function cursor_normalize_diff (diffs, cursor_pos) {
+		  if (cursor_pos === 0) {
+		    return [DIFF_EQUAL, diffs];
+		  }
+		  for (var current_pos = 0, i = 0; i < diffs.length; i++) {
+		    var d = diffs[i];
+		    if (d[0] === DIFF_DELETE || d[0] === DIFF_EQUAL) {
+		      var next_pos = current_pos + d[1].length;
+		      if (cursor_pos === next_pos) {
+		        return [i + 1, diffs];
+		      } else if (cursor_pos < next_pos) {
+		        // copy to prevent side effects
+		        diffs = diffs.slice();
+		        // split d into two diff changes
+		        var split_pos = cursor_pos - current_pos;
+		        var d_left = [d[0], d[1].slice(0, split_pos)];
+		        var d_right = [d[0], d[1].slice(split_pos)];
+		        diffs.splice(i, 1, d_left, d_right);
+		        return [i + 1, diffs];
+		      } else {
+		        current_pos = next_pos;
+		      }
+		    }
+		  }
+		  throw new Error('cursor_pos is out of bounds!')
+		}
+	
+		/*
+		 * Modify a diff such that the edit position is "shifted" to the proposed edit location (cursor_position).
+		 *
+		 * Case 1)
+		 *   Check if a naive shift is possible:
+		 *     [0, X], [ 1, Y] -> [ 1, Y], [0, X]    (if X + Y === Y + X)
+		 *     [0, X], [-1, Y] -> [-1, Y], [0, X]    (if X + Y === Y + X) - holds same result
+		 * Case 2)
+		 *   Check if the following shifts are possible:
+		 *     [0, 'pre'], [ 1, 'prefix'] -> [ 1, 'pre'], [0, 'pre'], [ 1, 'fix']
+		 *     [0, 'pre'], [-1, 'prefix'] -> [-1, 'pre'], [0, 'pre'], [-1, 'fix']
+		 *         ^            ^
+		 *         d          d_next
+		 *
+		 * @param {Array} diffs Array of diff tuples
+		 * @param {Int} cursor_pos Suggested edit position. Must not be out of bounds!
+		 * @return {Array} Array of diff tuples
+		 */
+		function fix_cursor (diffs, cursor_pos) {
+		  var norm = cursor_normalize_diff(diffs, cursor_pos);
+		  var ndiffs = norm[1];
+		  var cursor_pointer = norm[0];
+		  var d = ndiffs[cursor_pointer];
+		  var d_next = ndiffs[cursor_pointer + 1];
+	
+		  if (d[0] !== DIFF_EQUAL) {
+		    // A modification happened at the cursor location.
+		    // This is the expected outcome, so we can return the original diff.
+		    return diffs;
+		  } else {
+		    if (d_next != null && d[1] + d_next[1] === d_next[1] + d[1]) {
+		      // Case 1)
+		      // It is possible to perform a naive shift
+		      ndiffs.splice(cursor_pointer, 2, d_next, d)
+		      return merge_tuples(ndiffs, cursor_pointer, 2)
+		    } else if (d_next != null && d_next[1].indexOf(d[1]) === 0) {
+		      // Case 2)
+		      // d[1] is a prefix of d_next[1]
+		      // We can assume that d_next[0] !== 0, since d[0] === 0
+		      // Shift edit locations..
+		      ndiffs.splice(cursor_pointer, 2, [d_next[0], d[1]], [0, d[1]]);
+		      var suffix = d_next[1].slice(d[1].length);
+		      if (suffix.length > 0) {
+		        ndiffs.splice(cursor_pointer + 2, 0, [d_next[0], suffix]);
+		      }
+		      return merge_tuples(ndiffs, cursor_pointer, 3)
+		    } else {
+		      // Not possible to perform any modification
+		      return diffs;
+		    }
+		  }
+	
+		}
+	
+		/*
+		 * Try to merge tuples with their neigbors in a given range.
+		 * E.g. [0, 'a'], [0, 'b'] -> [0, 'ab']
+		 *
+		 * @param {Array} diffs Array of diff tuples.
+		 * @param {Int} start Position of the first element to merge (diffs[start] is also merged with diffs[start - 1]).
+		 * @param {Int} length Number of consecutive elements to check.
+		 * @return {Array} Array of merged diff tuples.
+		 */
+		function merge_tuples (diffs, start, length) {
+		  // Check from (start-1) to (start+length).
+		  for (var i = start + length - 1; i >= 0 && i >= start - 1; i--) {
+		    if (i + 1 < diffs.length) {
+		      var left_d = diffs[i];
+		      var right_d = diffs[i+1];
+		      if (left_d[0] === right_d[1]) {
+		        diffs.splice(i, 2, [left_d[0], left_d[1] + right_d[1]]);
+		      }
+		    }
+		  }
+		  return diffs;
+		}
 	
 	
 	/***/ },
@@ -4195,6 +4403,10 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }
 		};
 	
+		Iterator.prototype.peek = function () {
+		  return this.ops[this.index];
+		};
+	
 		Iterator.prototype.peekLength = function () {
 		  if (this.ops[this.index]) {
 		    // Should never return 0 if our index is being managed correctly
@@ -4231,15 +4443,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		  value: true
 		});
 	
-		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 	
 		var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 	
 		var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _op = __webpack_require__(26);
 	
@@ -4299,7 +4511,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function applyDelta(delta) {
 		      var _this = this;
 	
-		      var source = arguments.length <= 1 || arguments[1] === undefined ? _emitter4.default.sources.API : arguments[1];
+		      var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _emitter4.default.sources.API;
 	
 		      var consumeNextNewline = false;
 		      this.scroll.update();
@@ -4365,15 +4577,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'deleteText',
 		    value: function deleteText(index, length) {
-		      var source = arguments.length <= 2 || arguments[2] === undefined ? _emitter4.default.sources.API : arguments[2];
+		      var source = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : _emitter4.default.sources.API;
 	
 		      this.scroll.deleteAt(index, length);
-		      return this.update(new _delta2.default().retain(index).delete(length), source);
+		      return this.update(new _quillDelta2.default().retain(index).delete(length), source);
 		    }
 		  }, {
 		    key: 'enable',
 		    value: function enable() {
-		      var enabled = arguments.length <= 0 || arguments[0] === undefined ? true : arguments[0];
+		      var enabled = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
 	
 		      this.scroll.domNode.setAttribute('contenteditable', enabled);
 		    }
@@ -4382,14 +4594,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function formatLine(index, length) {
 		      var _this2 = this;
 	
-		      var formats = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
-		      var source = arguments.length <= 3 || arguments[3] === undefined ? _emitter4.default.sources.API : arguments[3];
+		      var formats = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+		      var source = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _emitter4.default.sources.API;
 	
 		      this.scroll.update();
 		      Object.keys(formats).forEach(function (format) {
 		        var lines = _this2.scroll.lines(index, Math.max(length, 1));
 		        var lengthRemaining = length;
-		        lines.forEach(function (line, i) {
+		        lines.forEach(function (line) {
 		          var lineLength = line.length();
 		          if (!(line instanceof _code2.default)) {
 		            line.format(format, formats[format]);
@@ -4402,20 +4614,20 @@ return /******/ (function(modules) { // webpackBootstrap
 		        });
 		      });
 		      this.scroll.optimize();
-		      return this.update(new _delta2.default().retain(index).retain(length, (0, _clone2.default)(formats)), source);
+		      return this.update(new _quillDelta2.default().retain(index).retain(length, (0, _clone2.default)(formats)), source);
 		    }
 		  }, {
 		    key: 'formatText',
 		    value: function formatText(index, length) {
 		      var _this3 = this;
 	
-		      var formats = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
-		      var source = arguments.length <= 3 || arguments[3] === undefined ? _emitter4.default.sources.API : arguments[3];
+		      var formats = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+		      var source = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _emitter4.default.sources.API;
 	
 		      Object.keys(formats).forEach(function (format) {
 		        _this3.scroll.formatAt(index, length, format, formats[format]);
 		      });
-		      return this.update(new _delta2.default().retain(index).retain(length, (0, _clone2.default)(formats)), source);
+		      return this.update(new _quillDelta2.default().retain(index).retain(length, (0, _clone2.default)(formats)), source);
 		    }
 		  }, {
 		    key: 'getContents',
@@ -4427,12 +4639,12 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function getDelta() {
 		      return this.scroll.lines().reduce(function (delta, line) {
 		        return delta.concat(line.delta());
-		      }, new _delta2.default());
+		      }, new _quillDelta2.default());
 		    }
 		  }, {
 		    key: 'getFormat',
 		    value: function getFormat(index) {
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 	
 		      var lines = [],
 		          leaves = [];
@@ -4474,25 +4686,25 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'insertEmbed',
 		    value: function insertEmbed(index, embed, value) {
-		      var source = arguments.length <= 3 || arguments[3] === undefined ? _emitter4.default.sources.API : arguments[3];
+		      var source = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _emitter4.default.sources.API;
 	
 		      this.scroll.insertAt(index, embed, value);
-		      return this.update(new _delta2.default().retain(index).insert(_defineProperty({}, embed, value)), source);
+		      return this.update(new _quillDelta2.default().retain(index).insert(_defineProperty({}, embed, value)), source);
 		    }
 		  }, {
 		    key: 'insertText',
 		    value: function insertText(index, text) {
 		      var _this4 = this;
 	
-		      var formats = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
-		      var source = arguments.length <= 3 || arguments[3] === undefined ? _emitter4.default.sources.API : arguments[3];
+		      var formats = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+		      var source = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _emitter4.default.sources.API;
 	
 		      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 		      this.scroll.insertAt(index, text);
 		      Object.keys(formats).forEach(function (format) {
 		        _this4.scroll.formatAt(index, text.length, format, formats[format]);
 		      });
-		      return this.update(new _delta2.default().retain(index).insert(text, (0, _clone2.default)(formats)), source);
+		      return this.update(new _quillDelta2.default().retain(index).insert(text, (0, _clone2.default)(formats)), source);
 		    }
 		  }, {
 		    key: 'isBlank',
@@ -4515,7 +4727,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      var offset = _scroll$line4[1];
 	
 		      var suffixLength = 0,
-		          suffix = new _delta2.default();
+		          suffix = new _quillDelta2.default();
 		      if (line != null) {
 		        if (!(line instanceof _code2.default)) {
 		          suffixLength = line.length() - offset;
@@ -4525,8 +4737,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		        suffix = line.delta().slice(offset, offset + suffixLength - 1).insert('\n');
 		      }
 		      var contents = this.getContents(index, length + suffixLength);
-		      var diff = contents.diff(new _delta2.default().insert(text).concat(suffix));
-		      var delta = new _delta2.default().retain(index).concat(diff);
+		      var diff = contents.diff(new _quillDelta2.default().insert(text).concat(suffix));
+		      var delta = new _quillDelta2.default().retain(index).concat(diff);
 		      return this.applyDelta(delta, source);
 		    }
 		  }, {
@@ -4534,8 +4746,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function update(change) {
 		      var _this5 = this;
 	
-		      var source = arguments.length <= 1 || arguments[1] === undefined ? _emitter4.default.sources.USER : arguments[1];
-		      var mutations = arguments.length <= 2 || arguments[2] === undefined ? [] : arguments[2];
+		      var source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _emitter4.default.sources.USER;
+		      var mutations = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : [];
 	
 		      var oldDelta = this.delta;
 		      if (mutations.length === 1 && mutations[0].type === 'characterData' && _parchment2.default.find(mutations[0].target)) {
@@ -4545,16 +4757,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		          var formats = (0, _block.bubbleFormats)(textBlot);
 		          var index = textBlot.offset(_this5.scroll);
 		          var oldValue = mutations[0].oldValue.replace(_cursor2.default.CONTENTS, '');
-		          var oldText = new _delta2.default().insert(oldValue);
-		          var newText = new _delta2.default().insert(textBlot.value());
-		          var diffDelta = new _delta2.default().retain(index).concat(oldText.diff(newText));
+		          var oldText = new _quillDelta2.default().insert(oldValue);
+		          var newText = new _quillDelta2.default().insert(textBlot.value());
+		          var diffDelta = new _quillDelta2.default().retain(index).concat(oldText.diff(newText));
 		          change = diffDelta.ops.reduce(function (delta, op) {
 		            if (op.insert) {
 		              return delta.insert(op.insert, formats);
 		            } else {
 		              return delta.push(op);
 		            }
-		          }, new _delta2.default());
+		          }, new _quillDelta2.default());
 		          _this5.delta = oldDelta.compose(change);
 		        })();
 		      } else {
@@ -4618,7 +4830,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      return delta.insert(text, op.attributes);
 		    }
 		    return delta.push(op);
-		  }, new _delta2.default());
+		  }, new _quillDelta2.default());
 		}
 	
 		exports.default = Editor;
@@ -4700,24 +4912,42 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		'use strict';
 	
-		var has = Object.prototype.hasOwnProperty;
-	
-		//
-		// We store our EE objects in a plain object whose properties are event names.
-		// If `Object.create(null)` is not supported we prefix the event names with a
-		// `~` to make sure that the built-in object properties are not overridden or
-		// used as an attack vector.
-		// We also assume that `Object.create(null)` is available when the event name
-		// is an ES6 Symbol.
-		//
-		var prefix = typeof Object.create !== 'function' ? '~' : false;
+		var has = Object.prototype.hasOwnProperty
+		  , prefix = '~';
 	
 		/**
-		 * Representation of a single EventEmitter function.
+		 * Constructor to create a storage for our `EE` objects.
+		 * An `Events` instance is a plain object whose properties are event names.
 		 *
-		 * @param {Function} fn Event handler to be called.
-		 * @param {Mixed} context Context for function execution.
-		 * @param {Boolean} [once=false] Only emit once
+		 * @constructor
+		 * @api private
+		 */
+		function Events() {}
+	
+		//
+		// We try to not inherit from `Object.prototype`. In some engines creating an
+		// instance in this way is faster than calling `Object.create(null)` directly.
+		// If `Object.create(null)` is not supported we prefix the event names with a
+		// character to make sure that the built-in object properties are not
+		// overridden or used as an attack vector.
+		//
+		if (Object.create) {
+		  Events.prototype = Object.create(null);
+	
+		  //
+		  // This hack is needed because the `__proto__` property is still inherited in
+		  // some old browsers like Android 4, iPhone 5.1, Opera 11 and Safari 5.
+		  //
+		  if (!new Events().__proto__) prefix = false;
+		}
+	
+		/**
+		 * Representation of a single event listener.
+		 *
+		 * @param {Function} fn The listener function.
+		 * @param {Mixed} context The context to invoke the listener with.
+		 * @param {Boolean} [once=false] Specify if the listener is a one-time listener.
+		 * @constructor
 		 * @api private
 		 */
 		function EE(fn, context, once) {
@@ -4727,21 +4957,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		}
 	
 		/**
-		 * Minimal EventEmitter interface that is molded against the Node.js
-		 * EventEmitter interface.
+		 * Minimal `EventEmitter` interface that is molded against the Node.js
+		 * `EventEmitter` interface.
 		 *
 		 * @constructor
 		 * @api public
 		 */
-		function EventEmitter() { /* Nothing to set */ }
-	
-		/**
-		 * Hold the assigned EventEmitters by name.
-		 *
-		 * @type {Object}
-		 * @private
-		 */
-		EventEmitter.prototype._events = undefined;
+		function EventEmitter() {
+		  this._events = new Events();
+		  this._eventsCount = 0;
+		}
 	
 		/**
 		 * Return an array listing the events for which the emitter has registered
@@ -4751,13 +4976,13 @@ return /******/ (function(modules) { // webpackBootstrap
 		 * @api public
 		 */
 		EventEmitter.prototype.eventNames = function eventNames() {
-		  var events = this._events
-		    , names = []
+		  var names = []
+		    , events
 		    , name;
 	
-		  if (!events) return names;
+		  if (this._eventsCount === 0) return names;
 	
-		  for (name in events) {
+		  for (name in (events = this._events)) {
 		    if (has.call(events, name)) names.push(prefix ? name.slice(1) : name);
 		  }
 	
@@ -4769,16 +4994,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		};
 	
 		/**
-		 * Return a list of assigned event listeners.
+		 * Return the listeners registered for a given event.
 		 *
-		 * @param {String} event The events that should be listed.
-		 * @param {Boolean} exists We only need to know if there are listeners.
+		 * @param {String|Symbol} event The event name.
+		 * @param {Boolean} exists Only check if there are listeners.
 		 * @returns {Array|Boolean}
 		 * @api public
 		 */
 		EventEmitter.prototype.listeners = function listeners(event, exists) {
 		  var evt = prefix ? prefix + event : event
-		    , available = this._events && this._events[evt];
+		    , available = this._events[evt];
 	
 		  if (exists) return !!available;
 		  if (!available) return [];
@@ -4792,23 +5017,23 @@ return /******/ (function(modules) { // webpackBootstrap
 		};
 	
 		/**
-		 * Emit an event to all registered event listeners.
+		 * Calls each of the listeners registered for a given event.
 		 *
-		 * @param {String} event The name of the event.
-		 * @returns {Boolean} Indication if we've emitted an event.
+		 * @param {String|Symbol} event The event name.
+		 * @returns {Boolean} `true` if the event had listeners, else `false`.
 		 * @api public
 		 */
 		EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
 		  var evt = prefix ? prefix + event : event;
 	
-		  if (!this._events || !this._events[evt]) return false;
+		  if (!this._events[evt]) return false;
 	
 		  var listeners = this._events[evt]
 		    , len = arguments.length
 		    , args
 		    , i;
 	
-		  if ('function' === typeof listeners.fn) {
+		  if (listeners.fn) {
 		    if (listeners.once) this.removeListener(event, listeners.fn, undefined, true);
 	
 		    switch (len) {
@@ -4836,6 +5061,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        case 1: listeners[i].fn.call(listeners[i].context); break;
 		        case 2: listeners[i].fn.call(listeners[i].context, a1); break;
 		        case 3: listeners[i].fn.call(listeners[i].context, a1, a2); break;
+		        case 4: listeners[i].fn.call(listeners[i].context, a1, a2, a3); break;
 		        default:
 		          if (!args) for (j = 1, args = new Array(len -1); j < len; j++) {
 		            args[j - 1] = arguments[j];
@@ -4850,115 +5076,118 @@ return /******/ (function(modules) { // webpackBootstrap
 		};
 	
 		/**
-		 * Register a new EventListener for the given event.
+		 * Add a listener for a given event.
 		 *
-		 * @param {String} event Name of the event.
-		 * @param {Function} fn Callback function.
-		 * @param {Mixed} [context=this] The context of the function.
+		 * @param {String|Symbol} event The event name.
+		 * @param {Function} fn The listener function.
+		 * @param {Mixed} [context=this] The context to invoke the listener with.
+		 * @returns {EventEmitter} `this`.
 		 * @api public
 		 */
 		EventEmitter.prototype.on = function on(event, fn, context) {
 		  var listener = new EE(fn, context || this)
 		    , evt = prefix ? prefix + event : event;
 	
-		  if (!this._events) this._events = prefix ? {} : Object.create(null);
-		  if (!this._events[evt]) this._events[evt] = listener;
-		  else {
-		    if (!this._events[evt].fn) this._events[evt].push(listener);
-		    else this._events[evt] = [
-		      this._events[evt], listener
-		    ];
-		  }
+		  if (!this._events[evt]) this._events[evt] = listener, this._eventsCount++;
+		  else if (!this._events[evt].fn) this._events[evt].push(listener);
+		  else this._events[evt] = [this._events[evt], listener];
 	
 		  return this;
 		};
 	
 		/**
-		 * Add an EventListener that's only called once.
+		 * Add a one-time listener for a given event.
 		 *
-		 * @param {String} event Name of the event.
-		 * @param {Function} fn Callback function.
-		 * @param {Mixed} [context=this] The context of the function.
+		 * @param {String|Symbol} event The event name.
+		 * @param {Function} fn The listener function.
+		 * @param {Mixed} [context=this] The context to invoke the listener with.
+		 * @returns {EventEmitter} `this`.
 		 * @api public
 		 */
 		EventEmitter.prototype.once = function once(event, fn, context) {
 		  var listener = new EE(fn, context || this, true)
 		    , evt = prefix ? prefix + event : event;
 	
-		  if (!this._events) this._events = prefix ? {} : Object.create(null);
-		  if (!this._events[evt]) this._events[evt] = listener;
-		  else {
-		    if (!this._events[evt].fn) this._events[evt].push(listener);
-		    else this._events[evt] = [
-		      this._events[evt], listener
-		    ];
-		  }
+		  if (!this._events[evt]) this._events[evt] = listener, this._eventsCount++;
+		  else if (!this._events[evt].fn) this._events[evt].push(listener);
+		  else this._events[evt] = [this._events[evt], listener];
 	
 		  return this;
 		};
 	
 		/**
-		 * Remove event listeners.
+		 * Remove the listeners of a given event.
 		 *
-		 * @param {String} event The event we want to remove.
-		 * @param {Function} fn The listener that we need to find.
-		 * @param {Mixed} context Only remove listeners matching this context.
-		 * @param {Boolean} once Only remove once listeners.
+		 * @param {String|Symbol} event The event name.
+		 * @param {Function} fn Only remove the listeners that match this function.
+		 * @param {Mixed} context Only remove the listeners that have this context.
+		 * @param {Boolean} once Only remove one-time listeners.
+		 * @returns {EventEmitter} `this`.
 		 * @api public
 		 */
 		EventEmitter.prototype.removeListener = function removeListener(event, fn, context, once) {
 		  var evt = prefix ? prefix + event : event;
 	
-		  if (!this._events || !this._events[evt]) return this;
-	
-		  var listeners = this._events[evt]
-		    , events = [];
-	
-		  if (fn) {
-		    if (listeners.fn) {
-		      if (
-		           listeners.fn !== fn
-		        || (once && !listeners.once)
-		        || (context && listeners.context !== context)
-		      ) {
-		        events.push(listeners);
-		      }
-		    } else {
-		      for (var i = 0, length = listeners.length; i < length; i++) {
-		        if (
-		             listeners[i].fn !== fn
-		          || (once && !listeners[i].once)
-		          || (context && listeners[i].context !== context)
-		        ) {
-		          events.push(listeners[i]);
-		        }
-		      }
-		    }
+		  if (!this._events[evt]) return this;
+		  if (!fn) {
+		    if (--this._eventsCount === 0) this._events = new Events();
+		    else delete this._events[evt];
+		    return this;
 		  }
 	
-		  //
-		  // Reset the array, or remove it completely if we have no more listeners.
-		  //
-		  if (events.length) {
-		    this._events[evt] = events.length === 1 ? events[0] : events;
+		  var listeners = this._events[evt];
+	
+		  if (listeners.fn) {
+		    if (
+		         listeners.fn === fn
+		      && (!once || listeners.once)
+		      && (!context || listeners.context === context)
+		    ) {
+		      if (--this._eventsCount === 0) this._events = new Events();
+		      else delete this._events[evt];
+		    }
 		  } else {
-		    delete this._events[evt];
+		    for (var i = 0, events = [], length = listeners.length; i < length; i++) {
+		      if (
+		           listeners[i].fn !== fn
+		        || (once && !listeners[i].once)
+		        || (context && listeners[i].context !== context)
+		      ) {
+		        events.push(listeners[i]);
+		      }
+		    }
+	
+		    //
+		    // Reset the array, or remove it completely if we have no more listeners.
+		    //
+		    if (events.length) this._events[evt] = events.length === 1 ? events[0] : events;
+		    else if (--this._eventsCount === 0) this._events = new Events();
+		    else delete this._events[evt];
 		  }
 	
 		  return this;
 		};
 	
 		/**
-		 * Remove all listeners or only the listeners for the specified event.
+		 * Remove all listeners, or those of the specified event.
 		 *
-		 * @param {String} event The event want to remove all listeners for.
+		 * @param {String|Symbol} [event] The event name.
+		 * @returns {EventEmitter} `this`.
 		 * @api public
 		 */
 		EventEmitter.prototype.removeAllListeners = function removeAllListeners(event) {
-		  if (!this._events) return this;
+		  var evt;
 	
-		  if (event) delete this._events[prefix ? prefix + event : event];
-		  else this._events = prefix ? {} : Object.create(null);
+		  if (event) {
+		    evt = prefix ? prefix + event : event;
+		    if (this._events[evt]) {
+		      if (--this._eventsCount === 0) this._events = new Events();
+		      else delete this._events[evt];
+		    }
+		  } else {
+		    this._events = new Events();
+		    this._eventsCount = 0;
+		  }
 	
 		  return this;
 		};
@@ -4980,6 +5209,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		// Expose the prefix.
 		//
 		EventEmitter.prefixed = prefix;
+	
+		//
+		// Allow `EventEmitter` to be imported as module namespace.
+		//
+		EventEmitter.EventEmitter = EventEmitter;
 	
 		//
 		// Expose the module.
@@ -5007,7 +5241,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      args[_key - 1] = arguments[_key];
 		    }
 	
-		    console[method].apply(console, args);
+		    console[method].apply(console, args); // eslint-disable-line no-console
 		  }
 		}
 	
@@ -5041,9 +5275,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _parchment = __webpack_require__(2);
 	
@@ -5105,7 +5339,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      }
 		      return text.split('\n').reduce(function (delta, frag) {
 		        return delta.insert(frag).insert('\n', _this3.formats());
-		      }, new _delta2.default());
+		      }, new _quillDelta2.default());
 		    }
 		  }, {
 		    key: 'format',
@@ -5167,7 +5401,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'newlineIndex',
 		    value: function newlineIndex(searchIndex) {
-		      var reverse = arguments.length <= 1 || arguments[1] === undefined ? false : arguments[1];
+		      var reverse = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
 	
 		      if (!reverse) {
 		        var offset = this.domNode.textContent.slice(searchIndex).indexOf('\n');
@@ -5214,7 +5448,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    }
 		  }, {
 		    key: 'formats',
-		    value: function formats(domNode) {
+		    value: function formats() {
 		      return true;
 		    }
 		  }]);
@@ -5248,9 +5482,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _extend2 = _interopRequireDefault(_extend);
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _parchment = __webpack_require__(2);
 	
@@ -5300,7 +5534,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'delta',
 		    value: function delta() {
-		      return new _delta2.default().insert(this.value(), (0, _extend2.default)(this.formats(), this.attributes.values()));
+		      return new _quillDelta2.default().insert(this.value(), (0, _extend2.default)(this.formats(), this.attributes.values()));
 		    }
 		  }, {
 		    key: 'format',
@@ -5357,7 +5591,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		          } else {
 		            return delta.insert(leaf.value(), bubbleFormats(leaf));
 		          }
-		        }, new _delta2.default()).insert('\n', bubbleFormats(this));
+		        }, new _quillDelta2.default()).insert('\n', bubbleFormats(this));
 		      }
 		      return this.cache.delta;
 		    }
@@ -5446,7 +5680,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'split',
 		    value: function split(index) {
-		      var force = arguments.length <= 1 || arguments[1] === undefined ? false : arguments[1];
+		      var force = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
 	
 		      if (force && (index === 0 || index >= this.length() - NEWLINE_LENGTH)) {
 		        var clone = this.clone();
@@ -5474,7 +5708,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		Block.allowedChildren = [_inline2.default, _embed2.default, _text2.default];
 	
 		function bubbleFormats(blot) {
-		  var formats = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+		  var formats = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 	
 		  if (blot == null) return formats;
 		  if (typeof blot.formats === 'function') {
@@ -5530,6 +5764,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function insertInto(parent, ref) {
 		      if (parent.children.length === 0) {
 		        _get(Break.prototype.__proto__ || Object.getPrototypeOf(Break.prototype), 'insertInto', this).call(this, parent, ref);
+		      } else {
+		        this.remove();
 		      }
 		    }
 		  }, {
@@ -5544,7 +5780,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    }
 		  }], [{
 		    key: 'value',
-		    value: function value(domNode) {
+		    value: function value() {
 		      return undefined;
 		    }
 		  }]);
@@ -5607,10 +5843,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 	
-		var _extend = __webpack_require__(25);
-	
-		var _extend2 = _interopRequireDefault(_extend);
-	
 		var _embed = __webpack_require__(34);
 	
 		var _embed2 = _interopRequireDefault(_embed);
@@ -5656,7 +5888,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		    key: 'optimize',
 		    value: function optimize() {
 		      _get(Inline.prototype.__proto__ || Object.getPrototypeOf(Inline.prototype), 'optimize', this).call(this);
-		      var ref = this.parent.parent;
 		      if (this.parent instanceof Inline && Inline.compare(this.statics.blotName, this.parent.statics.blotName) > 0) {
 		        var parent = this.parent.isolate(this.offset(), this.length());
 		        this.moveChildren(parent);
@@ -5751,6 +5982,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _embed2 = _interopRequireDefault(_embed);
 	
+		var _text = __webpack_require__(36);
+	
+		var _text2 = _interopRequireDefault(_text);
+	
 		var _emitter = __webpack_require__(28);
 	
 		var _emitter2 = _interopRequireDefault(_emitter);
@@ -5768,7 +6003,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		  _createClass(Cursor, null, [{
 		    key: 'value',
-		    value: function value(domNode) {
+		    value: function value() {
 		      return undefined;
 		    }
 		  }]);
@@ -5823,7 +6058,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    }
 		  }, {
 		    key: 'position',
-		    value: function position(index) {
+		    value: function position() {
 		      return [this.textNode, this.textNode.data.length];
 		    }
 		  }, {
@@ -5841,31 +6076,46 @@ return /******/ (function(modules) { // webpackBootstrap
 		      if (this.parent == null) return;
 		      var textNode = this.textNode;
 		      var range = this.selection.getNativeRange();
+		      var restoreText = void 0,
+		          start = void 0,
+		          end = void 0;
+		      if (range != null && range.start.node === textNode && range.end.node === textNode) {
+		        var _ref = [textNode, range.start.offset, range.end.offset];
+		        restoreText = _ref[0];
+		        start = _ref[1];
+		        end = _ref[2];
+		      }
 		      // Link format will insert text outside of anchor tag
 		      while (this.domNode.lastChild != null && this.domNode.lastChild !== this.textNode) {
 		        this.domNode.parentNode.insertBefore(this.domNode.lastChild, this.domNode);
 		      }
 		      if (this.textNode.data !== Cursor.CONTENTS) {
-		        this.textNode.data = this.textNode.data.split(Cursor.CONTENTS).join('');
-		        this.parent.insertBefore(_parchment2.default.create(this.textNode), this);
-		        this.textNode = document.createTextNode(Cursor.CONTENTS);
-		        this.domNode.appendChild(this.textNode);
+		        var text = this.textNode.data.split(Cursor.CONTENTS).join('');
+		        if (this.next instanceof _text2.default) {
+		          restoreText = this.next.domNode;
+		          this.next.insertAt(0, text);
+		          this.textNode.data = Cursor.CONTENTS;
+		        } else {
+		          this.textNode.data = text;
+		          this.parent.insertBefore(_parchment2.default.create(this.textNode), this);
+		          this.textNode = document.createTextNode(Cursor.CONTENTS);
+		          this.domNode.appendChild(this.textNode);
+		        }
 		      }
 		      this.remove();
-		      if (range != null && range.start.node === textNode && range.end.node === textNode) {
-		        this.selection.emitter.once(_emitter2.default.events.SCROLL_OPTIMIZE, function () {
-		          var _map = [range.start.offset, range.end.offset].map(function (offset) {
-		            return Math.max(0, Math.min(textNode.data.length, offset - 1));
-		          });
-	
-		          var _map2 = _slicedToArray(_map, 2);
-	
-		          var start = _map2[0];
-		          var end = _map2[1];
-	
-		          _this2.selection.setNativeRange(textNode, start, textNode, end);
+		      if (start == null) return;
+		      this.selection.emitter.once(_emitter2.default.events.SCROLL_OPTIMIZE, function () {
+		        var _map = [start, end].map(function (offset) {
+		          return Math.max(0, Math.min(restoreText.data.length, offset - 1));
 		        });
-		      }
+	
+		        var _map2 = _slicedToArray(_map, 2);
+	
+		        start = _map2[0];
+		        end = _map2[1];
+	
+		        _this2.selection.setNativeRange(restoreText, start, restoreText, end);
+		      });
 		    }
 		  }, {
 		    key: 'update',
@@ -5891,7 +6141,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		Cursor.blotName = 'cursor';
 		Cursor.className = 'ql-cursor';
 		Cursor.tagName = 'span';
-		Cursor.CONTENTS = '﻿'; // Zero width no break space
+		Cursor.CONTENTS = '\uFEFF'; // Zero width no break space
 	
 	
 		exports.default = Cursor;
@@ -5902,6 +6152,29 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var clone = (function() {
 		'use strict';
+	
+		var nativeMap;
+		try {
+		  nativeMap = Map;
+		} catch(_) {
+		  // maybe a reference error because no `Map`. Give it a dummy value that no
+		  // value will ever be an instanceof.
+		  nativeMap = function() {};
+		}
+	
+		var nativeSet;
+		try {
+		  nativeSet = Set;
+		} catch(_) {
+		  nativeSet = function() {};
+		}
+	
+		var nativePromise;
+		try {
+		  nativePromise = Promise;
+		} catch(_) {
+		  nativePromise = function() {};
+		}
 	
 		/**
 		 * Clones (copies) an Object using deep copying.
@@ -5927,7 +6200,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    depth = circular.depth;
 		    prototype = circular.prototype;
 		    filter = circular.filter;
-		    circular = circular.circular
+		    circular = circular.circular;
 		  }
 		  // maintain two arrays for circular references, where corresponding parents
 		  // and children have the same index
@@ -5948,7 +6221,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    if (parent === null)
 		      return null;
 	
-		    if (depth == 0)
+		    if (depth === 0)
 		      return parent;
 	
 		    var child;
@@ -5957,7 +6230,19 @@ return /******/ (function(modules) { // webpackBootstrap
 		      return parent;
 		    }
 	
-		    if (clone.__isArray(parent)) {
+		    if (parent instanceof nativeMap) {
+		      child = new nativeMap();
+		    } else if (parent instanceof nativeSet) {
+		      child = new nativeSet();
+		    } else if (parent instanceof nativePromise) {
+		      child = new nativePromise(function (resolve, reject) {
+		        parent.then(function(value) {
+		          resolve(_clone(value, depth - 1));
+		        }, function(err) {
+		          reject(_clone(err, depth - 1));
+		        });
+		      });
+		    } else if (clone.__isArray(parent)) {
 		      child = [];
 		    } else if (clone.__isRegExp(parent)) {
 		      child = new RegExp(parent.source, __getRegExpFlags(parent));
@@ -5989,6 +6274,30 @@ return /******/ (function(modules) { // webpackBootstrap
 		      allChildren.push(child);
 		    }
 	
+		    if (parent instanceof nativeMap) {
+		      var keyIterator = parent.keys();
+		      while(true) {
+		        var next = keyIterator.next();
+		        if (next.done) {
+		          break;
+		        }
+		        var keyChild = _clone(next.value, depth - 1);
+		        var valueChild = _clone(parent.get(next.value), depth - 1);
+		        child.set(keyChild, valueChild);
+		      }
+		    }
+		    if (parent instanceof nativeSet) {
+		      var iterator = parent.keys();
+		      while(true) {
+		        var next = iterator.next();
+		        if (next.done) {
+		          break;
+		        }
+		        var entryChild = _clone(next.value, depth - 1);
+		        child.add(entryChild);
+		      }
+		    }
+	
 		    for (var i in parent) {
 		      var attrs;
 		      if (proto) {
@@ -5999,6 +6308,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		        continue;
 		      }
 		      child[i] = _clone(parent[i], depth - 1);
+		    }
+	
+		    if (Object.getOwnPropertySymbols) {
+		      var symbols = Object.getOwnPropertySymbols(parent);
+		      for (var i = 0; i < symbols.length; i++) {
+		        // Don't need to worry about cloning a symbol because it is a primitive,
+		        // like a number or string.
+		        var symbol = symbols[i];
+		        child[symbol] = _clone(parent[symbol], depth - 1);
+		      }
 		    }
 	
 		    return child;
@@ -6027,22 +6346,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		function __objToStr(o) {
 		  return Object.prototype.toString.call(o);
-		};
+		}
 		clone.__objToStr = __objToStr;
 	
 		function __isDate(o) {
 		  return typeof o === 'object' && __objToStr(o) === '[object Date]';
-		};
+		}
 		clone.__isDate = __isDate;
 	
 		function __isArray(o) {
 		  return typeof o === 'object' && __objToStr(o) === '[object Array]';
-		};
+		}
 		clone.__isArray = __isArray;
 	
 		function __isRegExp(o) {
 		  return typeof o === 'object' && __objToStr(o) === '[object RegExp]';
-		};
+		}
 		clone.__isRegExp = __isRegExp;
 	
 		function __getRegExpFlags(re) {
@@ -6051,7 +6370,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  if (re.ignoreCase) flags += 'i';
 		  if (re.multiline) flags += 'm';
 		  return flags;
-		};
+		}
 		clone.__getRegExpFlags = __getRegExpFlags;
 	
 		return clone;
@@ -6075,7 +6394,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 	
 		var Module = function Module(quill) {
-		  var options = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
+		  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 	
 		  _classCallCheck(this, Module);
 	
@@ -6114,10 +6433,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _deepEqual2 = _interopRequireDefault(_deepEqual);
 	
-		var _break = __webpack_require__(33);
-	
-		var _break2 = _interopRequireDefault(_break);
-	
 		var _emitter3 = __webpack_require__(28);
 	
 		var _emitter4 = _interopRequireDefault(_emitter3);
@@ -6135,7 +6450,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		var debug = (0, _logger2.default)('quill:selection');
 	
 		var Range = function Range(index) {
-		  var length = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+		  var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 	
 		  _classCallCheck(this, Range);
 	
@@ -6223,7 +6538,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'getBounds',
 		    value: function getBounds(index) {
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
 	
 		      var scrollLength = this.scroll.length();
 		      index = Math.min(index, scrollLength - 1);
@@ -6269,6 +6584,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        bounds = range.getBoundingClientRect();
 		      } else {
 		        var side = 'left';
+		        var rect = void 0;
 		        if (node instanceof Text) {
 		          if (offset < node.data.length) {
 		            range.setStart(node, offset);
@@ -6278,9 +6594,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		            range.setEnd(node, offset);
 		            side = 'right';
 		          }
-		          var rect = range.getBoundingClientRect();
+		          rect = range.getBoundingClientRect();
 		        } else {
-		          var rect = leaf.domNode.getBoundingClientRect();
+		          rect = leaf.domNode.getBoundingClientRect();
 		          if (offset > 0) side = 'right';
 		        }
 		        bounds = {
@@ -6373,7 +6689,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'scrollIntoView',
 		    value: function scrollIntoView() {
-		      var range = arguments.length <= 0 || arguments[0] === undefined ? this.lastRange : arguments[0];
+		      var range = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this.lastRange;
 	
 		      if (range == null) return;
 		      var bounds = this.getBounds(range.index, range.length);
@@ -6399,9 +6715,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'setNativeRange',
 		    value: function setNativeRange(startNode, startOffset) {
-		      var endNode = arguments.length <= 2 || arguments[2] === undefined ? startNode : arguments[2];
-		      var endOffset = arguments.length <= 3 || arguments[3] === undefined ? startOffset : arguments[3];
-		      var force = arguments.length <= 4 || arguments[4] === undefined ? false : arguments[4];
+		      var endNode = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : startNode;
+		      var endOffset = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : startOffset;
+		      var force = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
 	
 		      debug.info('setNativeRange', startNode, startOffset, endNode, endOffset);
 		      if (startNode != null && (this.root.parentNode == null || startNode.parentNode == null || endNode.parentNode == null)) {
@@ -6430,8 +6746,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function setRange(range) {
 		      var _this3 = this;
 	
-		      var force = arguments.length <= 1 || arguments[1] === undefined ? false : arguments[1];
-		      var source = arguments.length <= 2 || arguments[2] === undefined ? _emitter4.default.sources.API : arguments[2];
+		      var force = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+		      var source = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : _emitter4.default.sources.API;
 	
 		      if (typeof force === 'string') {
 		        source = force;
@@ -6475,7 +6791,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'update',
 		    value: function update() {
-		      var source = arguments.length <= 0 || arguments[0] === undefined ? _emitter4.default.sources.USER : arguments[0];
+		      var source = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _emitter4.default.sources.USER;
 	
 		      var nativeRange = void 0,
 		          oldRange = this.lastRange;
@@ -6530,7 +6846,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	/***/ },
 	/* 41 */
-	/***/ function(module, exports, __webpack_require__) {
+	/***/ function(module, exports) {
 	
 		'use strict';
 	
@@ -6539,16 +6855,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		});
 	
 		var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-		var _extend = __webpack_require__(25);
-	
-		var _extend2 = _interopRequireDefault(_extend);
-	
-		var _emitter = __webpack_require__(28);
-	
-		var _emitter2 = _interopRequireDefault(_emitter);
-	
-		function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
 		function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 	
@@ -6779,13 +7085,16 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'line',
 		    value: function line(index) {
+		      if (index === this.length()) {
+		        return this.line(index - 1);
+		      }
 		      return this.descendant(isLine, index);
 		    }
 		  }, {
 		    key: 'lines',
 		    value: function lines() {
-		      var index = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-		      var length = arguments.length <= 1 || arguments[1] === undefined ? Number.MAX_VALUE : arguments[1];
+		      var index = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+		      var length = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : Number.MAX_VALUE;
 	
 		      var getLines = function getLines(blot, index, length) {
 		        var lines = [],
@@ -6805,7 +7114,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'optimize',
 		    value: function optimize() {
-		      var mutations = arguments.length <= 0 || arguments[0] === undefined ? [] : arguments[0];
+		      var mutations = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 	
 		      if (this.batch === true) return;
 		      _get(Scroll.prototype.__proto__ || Object.getPrototypeOf(Scroll.prototype), 'optimize', this).call(this, mutations);
@@ -6865,9 +7174,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _parchment = __webpack_require__(2);
 	
@@ -6985,7 +7294,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        if (node.nodeType === node.TEXT_NODE) {
 		          return textMatchers.reduce(function (delta, matcher) {
 		            return matcher(node, delta);
-		          }, new _delta2.default());
+		          }, new _quillDelta2.default());
 		        } else if (node.nodeType === node.ELEMENT_NODE) {
 		          return [].reduce.call(node.childNodes || [], function (delta, childNode) {
 		            var childrenDelta = traverse(childNode);
@@ -6998,15 +7307,15 @@ return /******/ (function(modules) { // webpackBootstrap
 		              }, childrenDelta);
 		            }
 		            return delta.concat(childrenDelta);
-		          }, new _delta2.default());
+		          }, new _quillDelta2.default());
 		        } else {
-		          return new _delta2.default();
+		          return new _quillDelta2.default();
 		        }
 		      };
 		      var delta = traverse(this.container);
 		      // Remove trailing newline
 		      if (deltaEndsWith(delta, '\n') && delta.ops[delta.ops.length - 1].attributes == null) {
-		        delta = delta.compose(new _delta2.default().retain(delta.length() - 1).delete(1));
+		        delta = delta.compose(new _quillDelta2.default().retain(delta.length() - 1).delete(1));
 		      }
 		      debug.log('convert', this.container.innerHTML, delta);
 		      this.container.innerHTML = '';
@@ -7015,13 +7324,13 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'dangerouslyPasteHTML',
 		    value: function dangerouslyPasteHTML(index, html) {
-		      var source = arguments.length <= 2 || arguments[2] === undefined ? _quill2.default.sources.API : arguments[2];
+		      var source = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : _quill2.default.sources.API;
 	
 		      if (typeof index === 'string') {
 		        return this.quill.setContents(this.convert(index), html);
 		      } else {
 		        var paste = this.convert(html);
-		        return this.quill.updateContents(new _delta2.default().retain(index).concat(paste), source);
+		        return this.quill.updateContents(new _quillDelta2.default().retain(index).concat(paste), source);
 		      }
 		    }
 		  }, {
@@ -7029,9 +7338,9 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function onPaste(e) {
 		      var _this3 = this;
 	
-		      if (e.defaultPrevented) return;
+		      if (e.defaultPrevented || !this.quill.isEnabled()) return;
 		      var range = this.quill.getSelection();
-		      var delta = new _delta2.default().retain(range.index).delete(range.length);
+		      var delta = new _quillDelta2.default().retain(range.index).delete(range.length);
 		      var bodyTop = document.body.scrollTop;
 		      this.container.focus();
 		      setTimeout(function () {
@@ -7076,7 +7385,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		}
 	
 		function matchAlias(format, node, delta) {
-		  return delta.compose(new _delta2.default().retain(delta.length(), _defineProperty({}, format, true)));
+		  return delta.compose(new _quillDelta2.default().retain(delta.length(), _defineProperty({}, format, true)));
 		}
 	
 		function matchAttributor(node, delta) {
@@ -7100,7 +7409,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    }
 		  });
 		  if (Object.keys(formats).length > 0) {
-		    delta = delta.compose(new _delta2.default().retain(delta.length(), formats));
+		    delta = delta.compose(new _quillDelta2.default().retain(delta.length(), formats));
 		  }
 		  return delta;
 		}
@@ -7113,11 +7422,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		    var value = match.value(node);
 		    if (value != null) {
 		      embed[match.blotName] = value;
-		      delta = new _delta2.default().insert(embed, match.formats(node));
+		      delta = new _quillDelta2.default().insert(embed, match.formats(node));
 		    }
 		  } else if (typeof match.formats === 'function') {
 		    var formats = _defineProperty({}, match.blotName, match.formats(node));
-		    delta = delta.compose(new _delta2.default().retain(delta.length(), formats));
+		    delta = delta.compose(new _quillDelta2.default().retain(delta.length(), formats));
 		  }
 		  return delta;
 		}
@@ -7129,8 +7438,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  return delta;
 		}
 	
-		function matchIgnore(node, delta) {
-		  return new _delta2.default();
+		function matchIgnore() {
+		  return new _quillDelta2.default();
 		}
 	
 		function matchNewline(node, delta) {
@@ -7157,11 +7466,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		    formats.bold = true;
 		  }
 		  if (Object.keys(formats).length > 0) {
-		    delta = delta.compose(new _delta2.default().retain(delta.length(), formats));
+		    delta = delta.compose(new _quillDelta2.default().retain(delta.length(), formats));
 		  }
 		  if (parseFloat(style.textIndent || 0) > 0) {
 		    // Could be 0.5in
-		    delta = new _delta2.default().insert('\t').concat(delta);
+		    delta = new _quillDelta2.default().insert('\t').concat(delta);
 		  }
 		  return delta;
 		}
@@ -7173,11 +7482,11 @@ return /******/ (function(modules) { // webpackBootstrap
 		    return delta.insert(text.trim());
 		  }
 		  if (!computeStyle(node.parentNode).whiteSpace.startsWith('pre')) {
+		    // eslint-disable-next-line func-style
 		    var replacer = function replacer(collapse, match) {
 		      match = match.replace(/[^\u00a0]/g, ''); // \u00a0 is nbsp;
 		      return match.length < 1 && collapse ? ' ' : match;
 		    };
-	
 		    text = text.replace(/\r\n/g, ' ').replace(/\n/g, ' ');
 		    text = text.replace(/\s\s+/g, replacer.bind(replacer, true)); // collapse whitespace
 		    if (node.previousSibling == null && isLine(node.parentNode) || node.previousSibling != null && isLine(node.previousSibling)) {
@@ -7533,7 +7842,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        undo: undoDelta
 		      });
 		      if (this.stack.undo.length > this.options.maxStack) {
-		        this.stack.undo.unshift();
+		        this.stack.undo.shift();
 		      }
 		    }
 		  }, {
@@ -7608,7 +7917,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  value: true
 		});
 	
-		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 	
 		var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 	
@@ -7625,10 +7934,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		var _extend = __webpack_require__(25);
 	
 		var _extend2 = _interopRequireDefault(_extend);
-	
-		var _delta = __webpack_require__(20);
-	
-		var _delta2 = _interopRequireDefault(_delta);
 	
 		var _op = __webpack_require__(26);
 	
@@ -7649,10 +7954,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		var _module = __webpack_require__(39);
 	
 		var _module2 = _interopRequireDefault(_module);
-	
-		var _block = __webpack_require__(32);
-	
-		var _block2 = _interopRequireDefault(_block);
 	
 		function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
@@ -7696,33 +7997,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		    });
 		    _this.addBinding({ key: Keyboard.keys.ENTER, shiftKey: null }, handleEnter);
 		    _this.addBinding({ key: Keyboard.keys.ENTER, metaKey: null, ctrlKey: null, altKey: null }, function () {});
-		    _this.addBinding({ key: Keyboard.keys.BACKSPACE }, { collapsed: true, prefix: /^.?$/ }, function (range, context) {
-		      if (range.index === 0) return;
-	
-		      var _quill$scroll$line = this.quill.scroll.line(range.index);
-	
-		      var _quill$scroll$line2 = _slicedToArray(_quill$scroll$line, 1);
-	
-		      var line = _quill$scroll$line2[0];
-	
-		      var formats = {};
-		      if (context.offset === 0) {
-		        var curFormats = line.formats();
-		        var prevFormats = this.quill.getFormat(range.index - 1, 1);
-		        formats = _op2.default.attributes.diff(curFormats, prevFormats) || {};
-		      }
-		      this.quill.deleteText(range.index - 1, 1, _quill2.default.sources.USER);
-		      if (Object.keys(formats).length > 0) {
-		        this.quill.formatLine(range.index - 1, 1, formats, _quill2.default.sources.USER);
-		      }
-		      this.quill.selection.scrollIntoView();
-		    });
-		    _this.addBinding({ key: Keyboard.keys.DELETE }, { collapsed: true, suffix: /^$/ }, function (range) {
-		      if (range.index >= this.quill.getLength() - 1) return;
-		      this.quill.deleteText(range.index, 1, _quill2.default.sources.USER);
-		    });
-		    _this.addBinding({ key: Keyboard.keys.BACKSPACE }, { collapsed: false }, handleDelete);
-		    _this.addBinding({ key: Keyboard.keys.DELETE }, { collapsed: false }, handleDelete);
+		    _this.addBinding({ key: Keyboard.keys.BACKSPACE }, { collapsed: true, prefix: /^.?$/ }, handleBackspace);
+		    _this.addBinding({ key: Keyboard.keys.DELETE }, { collapsed: true, suffix: /^$/ }, handleDelete);
+		    _this.addBinding({ key: Keyboard.keys.BACKSPACE }, { collapsed: false }, handleDeleteRange);
+		    _this.addBinding({ key: Keyboard.keys.DELETE }, { collapsed: false }, handleDeleteRange);
+		    if (/Trident/i.test(navigator.userAgent)) {
+		      _this.addBinding({ key: Keyboard.keys.BACKSPACE, shortKey: true }, handleBackspace);
+		      _this.addBinding({ key: Keyboard.keys.DELETE, shortKey: true }, handleDelete);
+		    }
 		    _this.listen();
 		    return _this;
 		  }
@@ -7730,8 +8012,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  _createClass(Keyboard, [{
 		    key: 'addBinding',
 		    value: function addBinding(key) {
-		      var context = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
-		      var handler = arguments.length <= 2 || arguments[2] === undefined ? {} : arguments[2];
+		      var context = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+		      var handler = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 	
 		      var binding = normalize(key);
 		      if (binding == null || binding.key == null) {
@@ -7760,14 +8042,14 @@ return /******/ (function(modules) { // webpackBootstrap
 		        });
 		        if (bindings.length === 0) return;
 		        var range = _this2.quill.getSelection();
-		        if (range == null) return; // implies we do not have focus
+		        if (range == null || !_this2.quill.hasFocus()) return;
 	
-		        var _quill$scroll$line3 = _this2.quill.scroll.line(range.index);
+		        var _quill$scroll$line = _this2.quill.scroll.line(range.index);
 	
-		        var _quill$scroll$line4 = _slicedToArray(_quill$scroll$line3, 2);
+		        var _quill$scroll$line2 = _slicedToArray(_quill$scroll$line, 2);
 	
-		        var line = _quill$scroll$line4[0];
-		        var offset = _quill$scroll$line4[1];
+		        var line = _quill$scroll$line2[0];
+		        var offset = _quill$scroll$line2[1];
 	
 		        var _quill$scroll$leaf = _this2.quill.scroll.leaf(range.index);
 	
@@ -7886,7 +8168,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      shiftKey: true,
 		      collapsed: true,
 		      prefix: /\t$/,
-		      handler: function handler(range, context) {
+		      handler: function handler(range) {
 		        this.quill.deleteText(range.index - 1, 1, _quill2.default.sources.USER);
 		      }
 		    },
@@ -7939,7 +8221,34 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }
 		};
 	
+		function handleBackspace(range, context) {
+		  if (range.index === 0) return;
+	
+		  var _quill$scroll$line3 = this.quill.scroll.line(range.index);
+	
+		  var _quill$scroll$line4 = _slicedToArray(_quill$scroll$line3, 1);
+	
+		  var line = _quill$scroll$line4[0];
+	
+		  var formats = {};
+		  if (context.offset === 0) {
+		    var curFormats = line.formats();
+		    var prevFormats = this.quill.getFormat(range.index - 1, 1);
+		    formats = _op2.default.attributes.diff(curFormats, prevFormats) || {};
+		  }
+		  this.quill.deleteText(range.index - 1, 1, _quill2.default.sources.USER);
+		  if (Object.keys(formats).length > 0) {
+		    this.quill.formatLine(range.index - 1, 1, formats, _quill2.default.sources.USER);
+		  }
+		  this.quill.selection.scrollIntoView();
+		}
+	
 		function handleDelete(range) {
+		  if (range.index >= this.quill.getLength() - 1) return;
+		  this.quill.deleteText(range.index, 1, _quill2.default.sources.USER);
+		}
+	
+		function handleDeleteRange(range) {
 		  this.quill.deleteText(range, _quill2.default.sources.USER);
 		  this.quill.setSelection(range.index, _quill2.default.sources.SILENT);
 		  this.quill.selection.scrollIntoView();
@@ -8392,14 +8701,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 	
-		var _extend = __webpack_require__(25);
-	
-		var _extend2 = _interopRequireDefault(_extend);
-	
-		var _delta = __webpack_require__(20);
-	
-		var _delta2 = _interopRequireDefault(_delta);
-	
 		var _parchment = __webpack_require__(2);
 	
 		var _parchment2 = _interopRequireDefault(_parchment);
@@ -8603,12 +8904,12 @@ return /******/ (function(modules) { // webpackBootstrap
 		    }
 		  }], [{
 		    key: 'create',
-		    value: function create(value) {
+		    value: function create() {
 		      return _get(Bold.__proto__ || Object.getPrototypeOf(Bold), 'create', this).call(this);
 		    }
 		  }, {
 		    key: 'formats',
-		    value: function formats(domNode) {
+		    value: function formats() {
 		      return true;
 		    }
 		  }]);
@@ -8902,8 +9203,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _link = __webpack_require__(60);
 	
-		var _link2 = _interopRequireDefault(_link);
-	
 		function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
 		function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -9115,7 +9414,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		  _createClass(FormulaBlot, [{
 		    key: 'index',
-		    value: function index(node, offset) {
+		    value: function index() {
 		      return 1;
 		    }
 		  }], [{
@@ -9123,7 +9422,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    value: function create(value) {
 		      var node = _get(FormulaBlot.__proto__ || Object.getPrototypeOf(FormulaBlot), 'create', this).call(this, value);
 		      if (typeof value === 'string') {
-		        katex.render(value, node);
+		        window.katex.render(value, node);
 		        node.setAttribute('data-value', value);
 		      }
 		      node.setAttribute('contenteditable', false);
@@ -9305,13 +9604,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 	
-		var _extend = __webpack_require__(25);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _extend2 = _interopRequireDefault(_extend);
-	
-		var _delta = __webpack_require__(20);
-	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _parchment = __webpack_require__(2);
 	
@@ -9369,9 +9664,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		    _this.handlers = {};
 		    Object.keys(_this.options.handlers).forEach(function (format) {
 		      _this.addHandler(format, _this.options.handlers[format]);
-		    });
-		    _this.container.addEventListener('mousedown', function (e) {
-		      e.preventDefault(); // Prevent blur
 		    });
 		    [].forEach.call(_this.container.querySelectorAll('button, select'), function (input) {
 		      _this.attach(input);
@@ -9453,7 +9745,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		        } else if (_parchment2.default.query(format).prototype instanceof _parchment2.default.Embed) {
 		          value = prompt('Enter ' + format);
 		          if (!value) return;
-		          _this2.quill.updateContents(new _delta2.default().retain(range.index).delete(range.length).insert(_defineProperty({}, format, value)), _quill2.default.sources.USER);
+		          _this2.quill.updateContents(new _quillDelta2.default().retain(range.index).delete(range.length).insert(_defineProperty({}, format, value)), _quill2.default.sources.USER);
 		        } else {
 		          _this2.quill.format(format, value, _quill2.default.sources.USER);
 		        }
@@ -9564,7 +9856,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		Toolbar.DEFAULTS = {
 		  container: null,
 		  handlers: {
-		    clean: function clean(value) {
+		    clean: function clean() {
 		      var _this3 = this;
 	
 		      var range = this.quill.getSelection();
@@ -9629,6 +9921,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  'blockquote': __webpack_require__(75),
 		  'bold': __webpack_require__(76),
 		  'clean': __webpack_require__(77),
+		  'code': __webpack_require__(78),
 		  'code-block': __webpack_require__(78),
 		  'color': __webpack_require__(79),
 		  'direction': {
@@ -9862,7 +10155,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  value: true
 		});
 	
-		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 	
 		var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 	
@@ -9885,7 +10178,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		    this.buildPicker();
 		    this.select.style.display = 'none';
 		    this.select.parentNode.insertBefore(this.container, this.select);
-		    this.label.addEventListener('click', function (event) {
+		    this.label.addEventListener('click', function () {
 		      _this.container.classList.toggle('ql-expanded');
 		    });
 		    this.select.addEventListener('change', this.update.bind(this));
@@ -9904,7 +10197,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      if (option.textContent) {
 		        item.setAttribute('data-label', option.textContent);
 		      }
-		      item.addEventListener('click', function (event) {
+		      item.addEventListener('click', function () {
 		        _this2.selectItem(item, true);
 		      });
 		      return item;
@@ -9954,7 +10247,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'selectItem',
 		    value: function selectItem(item) {
-		      var trigger = arguments.length <= 1 || arguments[1] === undefined ? false : arguments[1];
+		      var trigger = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
 	
 		      var selected = this.container.querySelector('.ql-selected');
 		      if (item === selected) return;
@@ -10244,17 +10537,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _emitter2 = _interopRequireDefault(_emitter);
 	
-		var _keyboard = __webpack_require__(52);
-	
-		var _keyboard2 = _interopRequireDefault(_keyboard);
-	
 		var _base = __webpack_require__(107);
 	
 		var _base2 = _interopRequireDefault(_base);
-	
-		var _icons = __webpack_require__(69);
-	
-		var _icons2 = _interopRequireDefault(_icons);
 	
 		var _selection = __webpack_require__(40);
 	
@@ -10352,7 +10637,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		      var _this3 = this;
 	
 		      _get(BubbleTooltip.prototype.__proto__ || Object.getPrototypeOf(BubbleTooltip.prototype), 'listen', this).call(this);
-		      this.root.querySelector('.ql-close').addEventListener('click', function (event) {
+		      this.root.querySelector('.ql-close').addEventListener('click', function () {
 		        _this3.root.classList.remove('ql-editing');
 		      });
 		      this.quill.on(_emitter2.default.events.SCROLL_OPTIMIZE, function () {
@@ -10408,9 +10693,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 		var _extend2 = _interopRequireDefault(_extend);
 	
-		var _delta = __webpack_require__(20);
+		var _quillDelta = __webpack_require__(20);
 	
-		var _delta2 = _interopRequireDefault(_delta);
+		var _quillDelta2 = _interopRequireDefault(_quillDelta);
 	
 		var _emitter = __webpack_require__(28);
 	
@@ -10566,10 +10851,10 @@ return /******/ (function(modules) { // webpackBootstrap
 		  modules: {
 		    toolbar: {
 		      handlers: {
-		        formula: function formula(value) {
+		        formula: function formula() {
 		          this.quill.theme.tooltip.edit('formula');
 		        },
-		        image: function image(value) {
+		        image: function image() {
 		          var _this3 = this;
 	
 		          var fileInput = this.container.querySelector('input.ql-image[type=file]');
@@ -10583,7 +10868,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		                var reader = new FileReader();
 		                reader.onload = function (e) {
 		                  var range = _this3.quill.getSelection(true);
-		                  _this3.quill.updateContents(new _delta2.default().retain(range.index).delete(range.length).insert({ image: e.target.result }), _emitter2.default.sources.USER);
+		                  _this3.quill.updateContents(new _quillDelta2.default().retain(range.index).delete(range.length).insert({ image: e.target.result }), _emitter2.default.sources.USER);
 		                  fileInput.value = "";
 		                };
 		                reader.readAsDataURL(fileInput.files[0]);
@@ -10593,7 +10878,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		          }
 		          fileInput.click();
 		        },
-		        video: function video(value) {
+		        video: function video() {
 		          this.quill.theme.tooltip.edit('video');
 		        }
 		      }
@@ -10637,8 +10922,8 @@ return /******/ (function(modules) { // webpackBootstrap
 		  }, {
 		    key: 'edit',
 		    value: function edit() {
-		      var mode = arguments.length <= 0 || arguments[0] === undefined ? 'link' : arguments[0];
-		      var preview = arguments.length <= 1 || arguments[1] === undefined ? null : arguments[1];
+		      var mode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'link';
+		      var preview = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
 	
 		      this.root.classList.remove('ql-hidden');
 		      this.root.classList.add('ql-editing');
@@ -10665,35 +10950,41 @@ return /******/ (function(modules) { // webpackBootstrap
 		      var value = this.textbox.value;
 		      switch (this.root.getAttribute('data-mode')) {
 		        case 'link':
-		          var scrollTop = this.quill.root.scrollTop;
-		          if (this.linkRange) {
-		            this.quill.formatText(this.linkRange, 'link', value, _emitter2.default.sources.USER);
-		            delete this.linkRange;
-		          } else {
-		            this.restoreFocus();
-		            this.quill.format('link', value, _emitter2.default.sources.USER);
-		          }
-		          this.quill.root.scrollTop = scrollTop;
-		          break;
-		        case 'video':
-		          var match = value.match(/^(https?):\/\/(www\.)?youtube\.com\/watch.*v=([a-zA-Z0-9_-]+)/) || value.match(/^(https?):\/\/(www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/);
-		          if (match) {
-		            value = match[1] + '://www.youtube.com/embed/' + match[3] + '?showinfo=0';
-		          } else if (match = value.match(/^(https?):\/\/(www\.)?vimeo\.com\/(\d+)/)) {
-		            value = match[1] + '://player.vimeo.com/video/' + match[3] + '/';
-		          }
-		        // fallthrough
-		        case 'formula':
-		          var range = this.quill.getSelection(true);
-		          var index = range.index + range.length;
-		          if (range != null) {
-		            this.quill.insertEmbed(index, this.root.getAttribute('data-mode'), value, _emitter2.default.sources.USER);
-		            if (this.root.getAttribute('data-mode') === 'formula') {
-		              this.quill.insertText(index + 1, ' ', _emitter2.default.sources.USER);
+		          {
+		            var scrollTop = this.quill.root.scrollTop;
+		            if (this.linkRange) {
+		              this.quill.formatText(this.linkRange, 'link', value, _emitter2.default.sources.USER);
+		              delete this.linkRange;
+		            } else {
+		              this.restoreFocus();
+		              this.quill.format('link', value, _emitter2.default.sources.USER);
 		            }
-		            this.quill.setSelection(index + 2, _emitter2.default.sources.USER);
+		            this.quill.root.scrollTop = scrollTop;
+		            break;
 		          }
-		          break;
+		        case 'video':
+		          {
+		            var match = value.match(/^(https?):\/\/(www\.)?youtube\.com\/watch.*v=([a-zA-Z0-9_-]+)/) || value.match(/^(https?):\/\/(www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/);
+		            if (match) {
+		              value = match[1] + '://www.youtube.com/embed/' + match[3] + '?showinfo=0';
+		            } else if (match = value.match(/^(https?):\/\/(www\.)?vimeo\.com\/(\d+)/)) {
+		              // eslint-disable-line no-cond-assign
+		              value = match[1] + '://player.vimeo.com/video/' + match[3] + '/';
+		            }
+		          } // eslint-disable-next-line no-fallthrough
+		        case 'formula':
+		          {
+		            var range = this.quill.getSelection(true);
+		            var index = range.index + range.length;
+		            if (range != null) {
+		              this.quill.insertEmbed(index, this.root.getAttribute('data-mode'), value, _emitter2.default.sources.USER);
+		              if (this.root.getAttribute('data-mode') === 'formula') {
+		                this.quill.insertText(index + 1, ' ', _emitter2.default.sources.USER);
+		              }
+		              this.quill.setSelection(index + 2, _emitter2.default.sources.USER);
+		            }
+		            break;
+		          }
 		        default:
 		      }
 		      this.textbox.value = '';
@@ -10705,7 +10996,7 @@ return /******/ (function(modules) { // webpackBootstrap
 		}(_tooltip2.default);
 	
 		function fillSelect(select, values) {
-		  var defaultValue = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
+		  var defaultValue = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
 	
 		  values.forEach(function (value) {
 		    var option = document.createElement('option');
@@ -10752,10 +11043,6 @@ return /******/ (function(modules) { // webpackBootstrap
 		var _link = __webpack_require__(60);
 	
 		var _link2 = _interopRequireDefault(_link);
-	
-		var _picker = __webpack_require__(101);
-	
-		var _picker2 = _interopRequireDefault(_picker);
 	
 		var _selection = __webpack_require__(40);
 	
